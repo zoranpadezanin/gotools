@@ -6,18 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 )
 
 // DownloadCSV blh bl
-func DownloadCSV(props map[string]interface{}) (l string, p string) {
-	// Get properties
-	connString := getProperty(props, "connectionString")
-	nextmonth := getProperty(props, "nextmonth")
-	supplierid := getProperty(props, "supplierid")
-	filename := getProperty(props, "name")
-	workingfolder := getProperty(props, "workingfolder")
+func DownloadCSV(connString string, nextmonth string, supplierid string, filename string, workingfolder string, sqlString string) (string, string) {
 
 	//get csv file Name
 	t := time.Now()
@@ -34,34 +27,8 @@ func DownloadCSV(props map[string]interface{}) (l string, p string) {
 	}
 	defer db.Close()
 
-	//Get SQL & replace <lastyear> with last date
-	sql := loadSQL()
-	sql = strings.Replace(sql, "<nextmonth>", nextmonth, -1)
-
-	type ProductHistory struct {
-		SupplierID          string
-		OrderDate           string
-		Year                int32
-		Month               int32
-		Hour                int32
-		Quarter             int32
-		AccountID           string
-		Name                string
-		GroupCode           string
-		GroupDecription     string
-		RepCode             string
-		RepName             string
-		ProductID           string
-		CategoryCode        string
-		CategoryDescription string
-		Ordered             int32
-		Delivered           int32
-		LineTotal           float32
-		Cost                float32
-	}
-
 	//Get rows and load into structure
-	rows, err := db.Query(sql)
+	rows, err := db.Query(sqlString)
 	defer rows.Close()
 
 	//open csv filename
@@ -71,6 +38,7 @@ func DownloadCSV(props map[string]interface{}) (l string, p string) {
 		return nil, nil
 	}
 	defer csvfile.Close()
+
 	writer := csv.NewWriter(csvfile)
 
 	// Loop to write CSV file
