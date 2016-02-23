@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +72,8 @@ func ZipIT(source string, target string) error {
 	return err
 }
 
-// LoadProperties Loads JSON properties into a MAP, Use GetProperty to get a named property
+// LoadProperties Loads JSON properties into a MAP,
+// Use GetProperty, thereafter to get a named property
 func LoadProperties(fileName string) (map[string]interface{}, error) {
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -137,4 +139,58 @@ func SendGS(fileName string, bucketName string) error {
 		log.Fatal("Error sending ZIP file", err.Error())
 	}
 	return os.Remove(fileName)
+}
+
+// DownloadGS downloads all files in a Google Storage bucket
+func DownloadGS(bucketName string, folder string) error {
+	client, err := google.DefaultClient(context.Background(), storage.DevstorageFullControlScope)
+	if err != nil {
+		return err
+	}
+	service, err := storage.New(client)
+	if err != nil {
+		return err
+	}
+	// List all objects in a bucket using pagination
+	pageToken := ""
+	for {
+		call := service.Objects.List(bucketName)
+		if pageToken != "" {
+			call = call.PageToken(pageToken)
+		}
+		_ = "breakpoint"
+		res, err := call.Do()
+		if err != nil {
+			return err
+		}
+
+		for _, object := range res.Items {
+			if res, err := service.Objects.Get(bucketName, string(object.Name)).Do(); err == nil {
+				err := DownloadFile(folder, res.Name, res.MediaLink)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		if pageToken = res.NextPageToken; pageToken == "" {
+			break
+		}
+	}
+
+	return nil
+}
+
+// DownloadFile Downloads a file from a URL
+func DownloadFile(folder string, filename string, url string) error {
+	out, err := os.Create(folder + "/" + filename)
+	defer out.Close()
+	resp, err := http.Get(url)
+	defer resp.Body.Close()
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+	return nil
 }
