@@ -2,6 +2,7 @@ package gcloud
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -149,7 +150,17 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	if err != nil {
 		return err
 	}
-	return os.Remove(fileName)
+	//try 5 times to delete the file, waiting 10 seconds in between. May not be able to delete if upload is still happening
+	var delerr error
+	for i := 0; i < 5; i++ {
+		delerr = os.Remove(fileName)
+		if delerr != nil {
+			return nil
+		}
+		fmt.Println("Waiting 10 seconds")
+		time.Sleep(10 * time.Second)
+	}
+	return delerr
 }
 
 // DownloadGS downloads all files in a Google Storage bucket and returns a list of files downloaded
