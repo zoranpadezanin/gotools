@@ -3,23 +3,14 @@ package file
 import (
 	"archive/zip"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
-
-	"golang.org/x/net/context"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/storage/v1"
 )
-
-var wg sync.WaitGroup
 
 // ZipIT This will ZIP a file and delete the source file after zip
 func ZipIT(source string, target string) error {
@@ -53,7 +44,7 @@ func ZipIT(source string, target string) error {
 			header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
 		}
 		if info.IsDir() {
-			header.Name += "/"
+			header.Name += string(os.PathSeparator)
 		} else {
 			header.Method = zip.Deflate
 		}
@@ -76,34 +67,35 @@ func ZipIT(source string, target string) error {
 	return err
 }
 
-// UnZipIT unzips a file to the current folder
+// UnZipIT unzips a file to the working folder
 // and returns the file names in a slice
-func UnZipIT(fileName string) ([]string, error) {
+func UnZipIT(folder string, fileName string) ([]string, error) {
 	// Open a zip archive for reading.
-	r, err := zip.OpenReader(fileName)
+	r, err := zip.OpenReader(filepath.Join(folder, fileName))
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 
 	// Iterate through the files in the archive,
-	// printing some of their contents.
 	var results []string
 	for _, f := range r.File {
 		results = append(results, f.Name)
-		/*
-		   	fmt.Printf("Contents of %s:\n", f.Name)
-		       rc, err := f.Open()
-		       if err != nil {
-		           return "", err
-		       }
-		       _, err = io.CopyN(os.Stdout, rc, 68)
-		       if err != nil {
-		           return "", err
-		       }
-		       rc.Close()
-		       fmt.Println()
-		*/
+		//fmt.Printf("Contents of %s:\n", f.Name)
+		rc, err := f.Open()
+		defer rc.Close()
+		if err != nil {
+			return nil, err
+		}
+		newf, err := os.Create(filepath.Join(folder, f.Name))
+		if err != nil {
+			return nil, err
+		}
+		defer newf.Close()
+		_, err = io.Copy(newf, rc)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return results, err
 }
@@ -153,152 +145,138 @@ if err != nil {
 }
 */
 
-// SendGS Sends file to a Google Storage Bucket, then deletes it
-func SendGS(fileName string, bucketName string) error {
-	sfile := fileName[strings.LastIndex(fileName, "/")+1 : len(fileName)]
-	client, err := google.DefaultClient(context.Background(), storage.DevstorageFullControlScope)
-	if err != nil {
-		log.Fatalf("Unable to get default client: %v", err)
-	}
-	service, err := storage.New(client)
-	if err != nil {
-		log.Fatalf("Unable to create storage service: %v", err)
-	}
-	object := &storage.Object{Name: sfile}
-	file, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal("Error opening file", err.Error())
-	}
-	if res, err := service.Objects.Insert(bucketName, object).Media(file).Do(); err == nil {
-		fmt.Printf("Created object %v at location %v\n\n", res.Name, res.SelfLink)
-	} else {
-		log.Fatal("Error sending ZIP file", err.Error())
-	}
-	return os.Remove(fileName)
-}
-
-// DownloadGS downloads all files in a Google Storage bucket and returns a list of files downloaded
-func DownloadGS(bucketName string, folder string) ([]string, error) {
-	client, err := google.DefaultClient(context.Background(), storage.DevstorageFullControlScope)
-	if err != nil {
-		return nil, err
-	}
-	service, err := storage.New(client)
-	if err != nil {
-		return nil, err
-	}
-	// List all objects in a bucket using pagination
-	var results []string
-	pageToken := ""
-	for {
-		call := service.Objects.List(bucketName)
-		if pageToken != "" {
-			call = call.PageToken(pageToken)
-		}
-		res, err := call.Do()
-		if err != nil {
-			return nil, err
-		}
-
-		for _, object := range res.Items {
-			if res, err := service.Objects.Get(bucketName, string(object.Name)).Do(); err == nil {
-				DownloadFile(folder, res.Name, res.MediaLink)
-
-				fmt.Println("%s", res.MediaLink)
-				results = append(results, res.Name)
-			} else {
-				return nil, err
-			}
-		}
-		if pageToken = res.NextPageToken; pageToken == "" {
-			break
-		}
-	}
-
-	return results, nil
-}
-
-// DownloadFile Downloads a file from a URL
-func DownloadFile(folder string, filename string, url string) (string, error) {
+// Wget Downloads a file from google url.
+// If you are using Google cloud Storage, ensure you pass in a google Client
+func Wget(client *http.Client, folder string, filename string, url string) (string, error) {
 	//ext := filepath.Ext(url)
-
-	file_path := folder + "/" + filename
-
+	filePath := filepath.Join(folder, filename)
 	os.Mkdir(folder, 0666)
 
-	file, err := os.Create(file_path)
+	file, err := os.Create(filePath)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 
-	res, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return "", err
 	}
-	defer res.Body.Close()
+	defer resp.Body.Close()
 
-	file_content, err := ioutil.ReadAll(res.Body)
-
+	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return "", err
 	}
+	/*
+		file_content, err := ioutil.ReadAll(res.Body)
 
-	// returns file size and err
-	_, err = file.Write(file_content)
+		if err != nil {
+			return "", err
+		}
 
-	if err != nil {
-		return "", err
-	}
+		// returns file size and err
+		_, err = file.Write(file_content)
+
+		if err != nil {
+			return "", err
+		}
+	*/
 
 	return folder, nil
 }
 
-// DownloadFile Downloads a file from a URL
-func DownloadFileo(folder string, filename string, url string) {
-	/*
-		out, err := os.Create(folder + "/" + filename)
-		defer out.Close()
-		resp, err := http.Get(url)
-		defer resp.Body.Close()
-		//_, err = io.Copy(out, resp.Body)
-		file_content, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			return err
-		}
-		return nil
-	*/
-	_ = "breakpoint"
-	res, _ := http.Head(url) // 187 MB file of random numbers per line
-	maps := res.Header
-	length, _ := strconv.Atoi(maps["Content-Length"][0]) // Get the content length from the header request
-	limit := 3                                           // 10 Go-routines for the process so each downloads 18.7MB
-	lenSub := length / limit                             // Bytes for each Go-routine
-	diff := length % limit                               // Get the remaining for the last request
-	body := make([]string, 11)                           // Make up a temporary array to hold the data to be written to the file
-	for i := 0; i < limit; i++ {
-		wg.Add(1)
+/*
+// ToMap Converts a structure to map
+func ToMap(in interface{}, tag string) (map[string]interface{}), error){
+    out := make(map[string]interface{})
 
-		min := lenSub * i       // Min range
-		max := lenSub * (i + 1) // Max range
+    v := reflect.ValueOf(in)
+    if v.Kind() == reflect.Ptr {
+        v = v.Elem()
+    }
 
-		if i == limit-1 {
-			max += diff // Add the remaining bytes in the last request
-		}
+    // we only accept structs
+    if v.Kind() != reflect.Struct {
+        return nil, fmt.Errorf("ToMap only accepts structs; got %T", v)
+    }
 
-		go func(min int, max int, i int) {
-			client := &http.Client{}
-			req, _ := http.NewRequest("GET", url, nil)
-			rangeHeader := "bytes=" + strconv.Itoa(min) + "-" + strconv.Itoa(max-1) // Add the data for the Range header of the form "bytes=0-100"
-			req.Header.Add("Range", rangeHeader)
-			resp, _ := client.Do(req)
-			defer resp.Body.Close()
-			reader, _ := ioutil.ReadAll(resp.Body)
-			body[i] = string(reader)
-			ioutil.WriteFile(strconv.Itoa(i), []byte(string(body[i])), 0x777) // Write to the file i as a byte array
-			wg.Done()
-			//          ioutil.WriteFile("new_oct.png", []byte(string(body)), 0x777)
-		}(min, max, i)
-	}
-	wg.Wait()
+    typ := v.Type()
+    for i := 0; i < v.NumField(); i++ {
+        // gets us a StructField
+        fi := typ.Field(i)
+        if tagv := fi.Tag.Get(tag); tagv != "" {
+            // set key of map to value in struct field
+            out[tagv] = v.Field(i).Interface()
+        }
+    }
+    return out, nil
 }
+*/
+
+/*
+func readCSV(folder string, filename string) error {
+
+	client, err := google.DefaultClient(context.Background(), storage.DevstorageFullControlScope)
+	if err != nil {
+		return err
+	}
+	bq, err := bigquery.New(client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	csvfile, err := os.Open(filepath.Join(folder, filename))
+	if err != nil {
+		return err
+	}
+	rows := make([]*bigquery.TableDataInsertAllRequestRows, 0)
+	reader := csv.NewReader(csvfile)
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		// create a new row MAP
+		row := &bigquery.TableDataInsertAllRequestRows{
+			Json: make(map[string]bigquery.JsonValue, 0),
+		}
+		row.Json["SupplierID"] = record[0]
+		row.Json["OrderDate"] = record[1]
+		row.Json["Year"], _ = strconv.Atoi(record[2])
+		row.Json["Month"], _ = strconv.Atoi(record[3])
+		row.Json["Hour"], _ = strconv.Atoi(record[4])
+		row.Json["Quarter"], _ = strconv.Atoi(record[5])
+		row.Json["AccountID"] = record[6]
+		row.Json["Name"] = record[7]
+		row.Json["GroupCode"] = record[8]
+		row.Json["GroupDescription"] = record[9]
+		row.Json["RepCode"] = record[10]
+		row.Json["RepName"] = record[11]
+		row.Json["ProductID"] = record[12]
+		row.Json["CategoryCode"] = record[13]
+		row.Json["CategoryDescription"] = record[14]
+		row.Json["Ordered"], _ = strconv.Atoi(record[15])
+		row.Json["Delivered"], _ = strconv.ParseFloat(record[16], 64)
+		row.Json["LineTotal"], _ = strconv.ParseFloat(record[17], 64)
+		row.Json["Cost"], _ = strconv.ParseFloat(record[18], 64)
+
+		rows = append(rows, row)
+
+	}
+	_ = "breakpoint"
+	//Create a new map to hold the rows of data
+	req := &bigquery.TableDataInsertAllRequest{
+		Rows: rows,
+	}
+	call := bq.Tabledata.InsertAll("citric-optics-107909", "History", "LILGREEN_ProductHistory", req)
+	resp, err := call.Do()
+	if err != nil {
+		return err
+	}
+
+	buf, _ := json.Marshal(resp)
+	log.Print(string(buf))
+	return nil
+}
+*/
