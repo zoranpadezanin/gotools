@@ -157,7 +157,7 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 		if delerr != nil {
 			return nil
 		}
-		fmt.Println("Waiting 10 seconds")
+		fmt.Println("Could not delete local file, waiting 10 seconds")
 		time.Sleep(10 * time.Second)
 	}
 	return delerr
