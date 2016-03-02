@@ -68,10 +68,10 @@ func JobStatusBQ(projectID string, jobID string) (bool, error) {
 	jobService := bigquery.NewJobsService(bq)
 	rslt, _ := jobService.Get(projectID, jobID).Do()
 	done := rslt.Status.State == "DONE"
-	if rslt.ErrorResult.Message != nil {
-		return done, errors.New(rslt.ErrorResult.Message)
+	if rslt.Status.ErrorResult.Message != "" {
+		return done, errors.New(rslt.Status.ErrorResult.Message)
 	}
-	return done, ""
+	return done, nil
 
 	//err := errors.New("emit macho dwarf: elf header corrupted")
 	//return
