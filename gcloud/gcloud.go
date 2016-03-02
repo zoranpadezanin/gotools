@@ -2,6 +2,7 @@ package gcloud
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -55,7 +56,7 @@ func CreateTableBQ(schemaFileName string, projectID string, datasetID string, ta
 // JobStatusBQ Creates a job and returns the job ID
 // Create a schema file in json format to use this method
 // Uses the URI to load data into the mentioned table
-func JobStatusBQ(projectID string, jobId string) bool {
+func JobStatusBQ(projectID string, jobID string) (bool, error) {
 	client, err := newClient()
 	if err != nil {
 		return false
@@ -65,8 +66,15 @@ func JobStatusBQ(projectID string, jobId string) bool {
 		return false
 	}
 	jobService := bigquery.NewJobsService(bq)
-	rslt, _ := jobService.Get(projectID, jobId).Do()
-	return rslt.Status.State == "DONE"
+	rslt, _ := jobService.Get(projectID, jobID).Do()
+	done := rslt.Status.State == "DONE"
+	if rslt.ErrorResult.Message != nil {
+		return done, errors.New(rslt.ErrorResult.Message)
+	}
+	return done, ""
+
+	//err := errors.New("emit macho dwarf: elf header corrupted")
+	//return
 }
 
 // InsertJobBQ Creates a job and returns the job ID
