@@ -59,11 +59,11 @@ func CreateTableBQ(schemaFileName string, projectID string, datasetID string, ta
 func JobStatusBQ(projectID string, jobID string) (bool, error) {
 	client, err := newClient()
 	if err != nil {
-		return false
+		return false, err
 	}
 	bq, err := bigquery.New(client)
 	if err != nil {
-		return false
+		return false, err
 	}
 	jobService := bigquery.NewJobsService(bq)
 	rslt, _ := jobService.Get(projectID, jobID).Do()
