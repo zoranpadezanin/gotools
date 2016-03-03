@@ -159,6 +159,7 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 		return err
 	}
 	//try 5 times to delete the file, waiting 10 seconds in between. May not be able to delete if upload is still happening
+	time.Sleep(3 * time.Second)
 	var delerr error
 	for i := 0; i < 5; i++ {
 		delerr = os.Remove(fileName)
