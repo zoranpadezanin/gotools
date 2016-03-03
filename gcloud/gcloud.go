@@ -68,7 +68,7 @@ func JobStatusBQ(projectID string, jobID string) (bool, error) {
 	jobService := bigquery.NewJobsService(bq)
 	rslt, _ := jobService.Get(projectID, jobID).Do()
 	done := rslt.Status.State == "DONE"
-	if rslt.Status.ErrorResult.Message != nil {
+	if rslt.Status.ErrorResult != nil {
 		return done, errors.New(rslt.Status.ErrorResult.Message)
 	}
 	return done, nil
