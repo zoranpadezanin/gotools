@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ZipIT This will ZIP a file and delete the source file after zip
@@ -168,22 +169,30 @@ func Wget(client *http.Client, folder string, filename string, url string) (stri
 	if err != nil {
 		return "", err
 	}
-	/*
-		file_content, err := ioutil.ReadAll(res.Body)
-
-		if err != nil {
-			return "", err
-		}
-
-		// returns file size and err
-		_, err = file.Write(file_content)
-
-		if err != nil {
-			return "", err
-		}
-	*/
-
 	return folder, nil
+}
+
+// CleanFolder start off by cleaning the desired folder of folders than X days
+// To delete log files in a folder older than 2 days, call this function : file.CleanFolder("logs", 2)
+func CleanFolder(root string, daystokeep int) error {
+	err := filepath.Walk(root, visit(daystokeep))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func visit(daystokeep int) filepath.WalkFunc {
+	return func(path string, f os.FileInfo, err error) error {
+		dateToKeep := time.Now().AddDate(0, daystokeep*-1, 0)
+		if f.ModTime().Before(dateToKeep) {
+			err = os.Remove(f.Name())
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 }
 
 /*

@@ -3,7 +3,6 @@ package gcloud
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -18,6 +17,59 @@ import (
 	"google.golang.org/api/bigquery/v2"
 	"google.golang.org/api/storage/v1"
 )
+
+// QueryBQ queries Bigquery and returns headers as a string array and rows as a multi dimension interface array
+func QueryBQ(projectID string, queryStr string) ([]string, [][]interface{}, error) {
+	client, err := newClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	bq, err := bigquery.New(client)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	query := &bigquery.QueryRequest{}
+	query.Query = queryStr
+	query.Kind = "json"
+	query.MaxResults = 1000
+
+	// call the query
+	jobService := bigquery.NewJobsService(bq)
+	rslt, err := jobService.Query(projectID, query).Do()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// get field headings into an array
+	headers := make([]string, len(rslt.Schema.Fields))
+	for i, f := range rslt.Schema.Fields {
+		headers[i] = f.Name
+	}
+
+	// create rows into arry of interfaces
+	rows := make([][]interface{}, len(rslt.Rows))
+	// Create rows
+	for i, tableRow := range rslt.Rows {
+		row := make([]interface{}, len(rslt.Schema.Fields))
+		// create columns
+		for j, tableCell := range tableRow.F {
+			schemaField := rslt.Schema.Fields[j]
+
+			if schemaField.Type == "RECORD" {
+				//TODO deal with nested columns as per https://github.com/dailyburn/bigquery/blob/master/client/client.go
+				//	row[j] = c.nestedFieldsData(schemaField.Fields, tableCell.V)
+			} else {
+				row[j] = tableCell.V
+			}
+		}
+		rows[i] = row
+	}
+
+	_ = "breakpoint"
+	return headers, rows, nil
+
+}
 
 // CreateTableBQ Creates a table if it does not exist
 // Create a schema file in json format
@@ -135,7 +187,7 @@ func CopyGS(srcBucketName string, srcObjectName string, destBucketName string, d
 	return err
 }
 
-// SendGS Sends file to a Google Storage Bucket, then deletes the local file
+// SendGS Sends file to a Google Storage Bucket
 func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	_, service, err := newStorageService()
 	if err != nil {
@@ -158,18 +210,7 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	if err != nil {
 		return err
 	}
-	//try 5 times to delete the file, waiting 10 seconds in between. May not be able to delete if upload is still happening
-	time.Sleep(3 * time.Second)
-	var delerr error
-	for i := 0; i < 5; i++ {
-		delerr = os.Remove(fileName)
-		if delerr != nil {
-			return nil
-		}
-		fmt.Println("Could not delete local file, waiting 10 seconds")
-		time.Sleep(10 * time.Second)
-	}
-	return delerr
+	return nil
 }
 
 // DownloadGS downloads all files in a Google Storage bucket and returns a list of files downloaded
