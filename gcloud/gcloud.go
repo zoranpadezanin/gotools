@@ -210,7 +210,9 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	if err != nil {
 		return err
 	}
-	return nil
+
+	err = os.Remove(fileName)
+	return err
 }
 
 // DownloadGS downloads all files in a Google Storage bucket and returns a list of files downloaded
