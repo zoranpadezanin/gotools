@@ -175,13 +175,27 @@ func Wget(client *http.Client, folder string, filename string, url string) (stri
 // CleanFolder start off by cleaning the desired folder of folders than X days
 // To delete log files in a folder older than 2 days, call this function : file.CleanFolder("logs", 2)
 func CleanFolder(root string, daystokeep int) error {
-	err := filepath.Walk(root, visit(daystokeep))
+	dateToKeep := time.Now().AddDate(0, 0, daystokeep*-1)
+	fn := func(path string, f os.FileInfo, err error) error {
+		if f == nil || f.IsDir() {
+			return nil
+		}
+		if f.ModTime().Before(dateToKeep) {
+			err = os.Remove(filepath.Join(root, f.Name()))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	err := filepath.Walk(root, fn)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+/*
 func visit(daystokeep int) filepath.WalkFunc {
 	return func(path string, f os.FileInfo, err error) error {
 		dateToKeep := time.Now().AddDate(0, daystokeep*-1, 0)
@@ -194,7 +208,7 @@ func visit(daystokeep int) filepath.WalkFunc {
 		return nil
 	}
 }
-
+*/
 /*
 // ToMap Converts a structure to map
 func ToMap(in interface{}, tag string) (map[string]interface{}), error){
