@@ -1,3 +1,5 @@
+// Package file gives us standard funcs to work on files easily.
+// Includes functions to work with properties, zipping, logs etc.
 package file
 
 import (
@@ -13,7 +15,7 @@ import (
 	"time"
 )
 
-// ZipIT This will ZIP a file and delete the source file after zip
+// ZipIT This will ZIP a source file and delete the source file after zip
 func ZipIT(source string, target string) error {
 	zipfile, err := os.Create(target)
 	if err != nil {
@@ -69,7 +71,7 @@ func ZipIT(source string, target string) error {
 }
 
 // UnZipIT unzips a file to the working folder
-// and returns the file names in a slice
+// and returns the file names in a slice.
 func UnZipIT(folder string, fileName string) ([]string, error) {
 	// Open a zip archive for reading.
 	r, err := zip.OpenReader(filepath.Join(folder, fileName))
@@ -102,7 +104,9 @@ func UnZipIT(folder string, fileName string) ([]string, error) {
 }
 
 // LoadProperties Loads JSON properties into a MAP,
-// Use GetProperty, thereafter to get a named property
+// Use GetProperty, thereafter to get a named property.
+// The properties file needs to be in a JSON format as follows:
+// {"accesskey":"GOOGYPA7N6QF2XXXPWEB5","bucket":"rapidtradeinbox"}
 func LoadProperties(fileName string) (map[string]interface{}, error) {
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -122,7 +126,7 @@ func SaveProperties(fileName string, props map[string]interface{}) error {
 }
 */
 
-// GetProperty Gets a string property by name
+// GetProperty Gets a string property by name. Note that you at the start of your program, you need to run LoadProperties() first
 func GetProperty(props map[string]interface{}, name string) string {
 	value, ok := props[name].(string)
 	if !ok {
@@ -131,7 +135,11 @@ func GetProperty(props map[string]interface{}, name string) string {
 	return value
 }
 
-// InitLogs Initialise log files
+// InitLogs Initialise log files, can be used as follows:
+//
+// Info, Error := file.InitLogs(os.Stdout)
+// Info.Println("Here is some info")
+// Error.Println("oh no...")
 func InitLogs(handler io.Writer) (*log.Logger, *log.Logger) {
 	infoLog := log.New(handler, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 	errorLog := log.New(handler, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
@@ -147,9 +155,9 @@ if err != nil {
 */
 
 // Wget Downloads a file from google url.
-// If you are using Google cloud Storage, ensure you pass in a google Client
+// If you are using Google cloud Storage, ensure you pass in a google Client, otherwise you can pass in a usual http client
+// eg. file.Wget(....)
 func Wget(client *http.Client, folder string, filename string, url string) (string, error) {
-	//ext := filepath.Ext(url)
 	filePath := filepath.Join(folder, filename)
 	os.Mkdir(folder, 0666)
 
@@ -195,20 +203,6 @@ func CleanFolder(root string, daystokeep int) error {
 	return nil
 }
 
-/*
-func visit(daystokeep int) filepath.WalkFunc {
-	return func(path string, f os.FileInfo, err error) error {
-		dateToKeep := time.Now().AddDate(0, daystokeep*-1, 0)
-		if f.ModTime().Before(dateToKeep) {
-			err = os.Remove(f.Name())
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-*/
 /*
 // ToMap Converts a structure to map
 func ToMap(in interface{}, tag string) (map[string]interface{}), error){

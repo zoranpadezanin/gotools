@@ -3,6 +3,7 @@ package gcloud
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/CaboodleData/gotools/file"
+	"github.com/Rapidtrade/gotools/gcloud"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
@@ -71,6 +73,50 @@ func QueryBQ(projectID string, queryStr string) ([]string, [][]interface{}, erro
 
 }
 
+// TableExistsBQ Creates a table if it does not exist
+// Create a schema file in json format
+func TableExistsBQ(projectID string, datasetID string, tableID string) (bool, error) {
+	client, err := newClient()
+	if err != nil {
+		return false, err
+	}
+	bq, err := bigquery.New(client)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tablesService := bigquery.NewTablesService(bq)
+	rslt, _ := tablesService.Get(projectID, datasetID, tableID).Do()
+	/*
+		if err != nil {
+			return false, err
+		}
+		fmt.Println(rslt)
+		return false, nil
+	*/
+	if rslt == nil {
+		return false, nil
+	} else {
+		return true, nil
+	}
+}
+
+// DeleteTableBQ Creates a table if it does not exist
+// Create a schema file in json format
+func DeleteTableBQ(projectID string, datasetID string, tableID string) error {
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	bq, err := bigquery.New(client)
+	if err != nil {
+		return err
+	}
+	tablesService := bigquery.NewTablesService(bq)
+	rslt := tablesService.Delete(projectID, datasetID, tableID).Do()
+	fmt.Println(rslt)
+	return nil
+}
+
 // CreateTableBQ Creates a table if it does not exist
 // Create a schema file in json format
 func CreateTableBQ(schemaFileName string, projectID string, datasetID string, tableID string) error {
@@ -129,10 +175,30 @@ func JobStatusBQ(projectID string, jobID string) (bool, error) {
 	//return
 }
 
-// InsertJobBQ Creates a job and returns the job ID
+// WaitForJob loops to wait for a job to finish
+func WaitForJob(projectID string, jobID string) (bool, error) {
+	// Wait for the job to finish sleeping 10 seconds at a time, only wait for 100 seconds for job to complete
+	x := 1
+	for {
+		time.Sleep(10 * time.Second)
+		done, err := gcloud.JobStatusBQ(projectID, jobID)
+		if err != nil {
+			return false, err
+		}
+		if done {
+			return true, nil
+		}
+		x++
+		if x > 30 {
+			return true, errors.New("Job not finished in 300 seconds")
+		}
+	}
+}
+
+// LoadJobBQ Creates a job and returns the job ID
 // Create a schema file in json format to use this method
 // Uses the URI to load data into the mentioned table
-func InsertJobBQ(jobFileName string, projectID string, datasetID string, tableID string, uri string) (string, error) {
+func LoadJobBQ(jobFileName string, projectID string, datasetID string, tableID string, uri string) (string, error) {
 	client, err := newClient()
 	if err != nil {
 		return "", err
@@ -159,6 +225,42 @@ func InsertJobBQ(jobFileName string, projectID string, datasetID string, tableID
 	job.Configuration.Load.DestinationTable.ProjectId = projectID
 	job.Configuration.Load.DestinationTable.TableId = tableID
 	job.Configuration.Load.SourceUris = append(job.Configuration.Load.SourceUris, uri)
+
+	// Create the job
+	_, err = jobService.Insert(projectID, job).Do()
+	return job.JobReference.JobId, err
+}
+
+// QueryJobBQ Creates a job and returns the job ID
+// Create a schema file in json format to use this method
+// Uses the URI to load data into the mentioned table
+func QueryJobBQ(projectID string, datasetID string, tableID string, query string) (string, error) {
+	client, err := newClient()
+	if err != nil {
+		return "", err
+	}
+	bq, err := bigquery.New(client)
+	if err != nil {
+		return "", err
+	}
+	jobService := bigquery.NewJobsService(bq)
+
+	job := &bigquery.Job{}
+	t := time.Now()
+	job.JobReference = &bigquery.JobReference{}
+	job.JobReference.JobId = t.Format("20060102150405")
+	job.JobReference.ProjectId = projectID
+
+	job.Configuration = &bigquery.JobConfiguration{}
+	job.Configuration.Query = &bigquery.JobConfigurationQuery{}
+	_ = "breakpoint"
+	var tbl bigquery.TableReference
+	job.Configuration.Query.DestinationTable = &tbl
+	//job.Configuration.Query.DestinationTable = &bigquery.TableReference
+	job.Configuration.Query.DestinationTable.DatasetId = datasetID
+	job.Configuration.Query.DestinationTable.ProjectId = projectID
+	job.Configuration.Query.DestinationTable.TableId = tableID
+	job.Configuration.Query.Query = query
 
 	// Create the job
 	_, err = jobService.Insert(projectID, job).Do()
@@ -194,7 +296,7 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 		return err
 	}
 
-	sfile := fileName[strings.LastIndex(fileName, string(os.PathSeparator))+1 : len(fileName)]
+	sfile := fileName[strings.LastIndex(fileName, "/")+1 : len(fileName)]
 	var objectName string
 	if bucketFolder == "" {
 		objectName = sfile
@@ -254,7 +356,21 @@ func DownloadGS(bucketName string, folder string, remove bool) ([]string, error)
 	return results, nil
 }
 
-// ListBucketGS Lists files in a bucket
+// FileExistsGS Checks if the given file name exists
+func FileExistsGS(bucketName string, fileName string) bool {
+	files, err := ListBucketGS(bucketName)
+	if err != nil {
+		return false
+	}
+	for _, file := range files {
+		if fileName == file {
+			return true
+		}
+	}
+	return false
+}
+
+// ListBucketGS Lists files in a bucket, returning a slice
 func ListBucketGS(bucketName string) ([]string, error) {
 	_, service, err := newStorageService()
 	if err != nil {
