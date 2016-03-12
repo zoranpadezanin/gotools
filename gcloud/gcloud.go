@@ -311,10 +311,9 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	if err != nil {
 		return err
 	}
-	//Sleep 10 seconds, then delete
-	time.Sleep(10 * time.Second)
-	err = os.Remove(fileName)
-	return err
+	// try to delete, but dont error if it doesnt
+	_ = os.Remove(fileName)
+	return nil
 }
 
 // DownloadGS downloads all files in a Google Storage bucket and returns a list of files downloaded
