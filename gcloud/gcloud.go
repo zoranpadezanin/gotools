@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/CaboodleData/gotools/file"
-	"github.com/Rapidtrade/gotools/gcloud"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
@@ -175,13 +174,13 @@ func JobStatusBQ(projectID string, jobID string) (bool, error) {
 	//return
 }
 
-// WaitForJob loops to wait for a job to finish
-func WaitForJob(projectID string, jobID string) (bool, error) {
+// WaitForJobBQ loops to wait for a job to finish
+func WaitForJobBQ(projectID string, jobID string) (bool, error) {
 	// Wait for the job to finish sleeping 10 seconds at a time, only wait for 100 seconds for job to complete
 	x := 1
 	for {
 		time.Sleep(10 * time.Second)
-		done, err := gcloud.JobStatusBQ(projectID, jobID)
+		done, err := JobStatusBQ(projectID, jobID)
 		if err != nil {
 			return false, err
 		}
@@ -312,7 +311,8 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	if err != nil {
 		return err
 	}
-
+	//Sleep 10 seconds, then delete
+	time.Sleep(10 * time.Second)
 	err = os.Remove(fileName)
 	return err
 }
