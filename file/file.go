@@ -137,10 +137,27 @@ func GetProperty(props map[string]interface{}, name string) string {
 
 // InitLogs Initialise log files, can be used as follows:
 //
-// Info, Error := file.InitLogs(os.Stdout)
+// Info, Error := file.InitLogs(true,"logs")
 // Info.Println("Here is some info")
 // Error.Println("oh no...")
-func InitLogs(handler io.Writer) (*log.Logger, *log.Logger) {
+func InitLogs(stdout bool, logFolder string, prefix string) (*log.Logger, *log.Logger) {
+	var handler io.Writer
+	var err error
+	// STDOUT logs to console, else we log to a file
+	if stdout {
+		handler = os.Stdout
+	} else {
+		// Create folder and a log file name indicating todays date
+		os.Mkdir(logFolder, 0777)
+		logName := filepath.Join(logFolder, prefix+"_"+time.Now().Format("20060102")+".log")
+		handler, err = os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			panic("Error opening logs")
+		}
+		//Keep logfolder clean by deleting logs older than 30 days
+		_ = CleanFolder(logFolder, 60)
+	}
+
 	infoLog := log.New(handler, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 	errorLog := log.New(handler, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	return infoLog, errorLog
