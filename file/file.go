@@ -220,6 +220,16 @@ func CleanFolder(root string, daystokeep int) error {
 	return nil
 }
 
+// Exists reports whether the named file or directory exists.
+func Exists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
+}
+
 /*
 // ToMap Converts a structure to map
 func ToMap(in interface{}, tag string) (map[string]interface{}), error){
