@@ -33,7 +33,6 @@ func QueryBQ(projectID string, queryStr string) ([]string, [][]interface{}, erro
 	query := &bigquery.QueryRequest{}
 	query.Query = queryStr
 	query.Kind = "json"
-	query.MaxResults = 1000
 
 	// call the query
 	jobService := bigquery.NewJobsService(bq)
