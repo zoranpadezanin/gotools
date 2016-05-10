@@ -3,7 +3,6 @@ package gcloud
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -110,8 +109,7 @@ func DeleteTableBQ(projectID string, datasetID string, tableID string) error {
 		return err
 	}
 	tablesService := bigquery.NewTablesService(bq)
-	rslt := tablesService.Delete(projectID, datasetID, tableID).Do()
-	fmt.Println(rslt)
+	_ = tablesService.Delete(projectID, datasetID, tableID).Do()
 	return nil
 }
 
@@ -255,6 +253,7 @@ func QueryJobBQ(projectID string, datasetID string, tableID string, query string
 	var tbl bigquery.TableReference
 	job.Configuration.Query.DestinationTable = &tbl
 	//job.Configuration.Query.DestinationTable = &bigquery.TableReference
+	job.Configuration.Query.AllowLargeResults = true
 	job.Configuration.Query.DestinationTable.DatasetId = datasetID
 	job.Configuration.Query.DestinationTable.ProjectId = projectID
 	job.Configuration.Query.DestinationTable.TableId = tableID
