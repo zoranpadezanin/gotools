@@ -314,6 +314,23 @@ func SendGS(bucketName string, bucketFolder string, fileName string) error {
 	return nil
 }
 
+// DownloadFileGS downloads all files in a Google Storage bucket and returns a list of files downloaded
+func DownloadFileGS(bucketName string, filename string, folder string, remove bool) (string, error) {
+	client, service, err := newStorageService()
+	if err != nil {
+		return "", err
+	}
+	if res, err := service.Objects.Get(bucketName, filename).Do(); err == nil {
+		file.Wget(client, folder, res.Name, res.MediaLink)
+		// after downloading, should we delete the file
+		if remove == true {
+			service.Objects.Delete(bucketName, filename).Do()
+		}
+		return res.Name, nil
+	}
+	return "", err
+}
+
 // DownloadGS downloads all files in a Google Storage bucket and returns a list of files downloaded
 func DownloadGS(bucketName string, folder string, remove bool) ([]string, error) {
 	client, service, err := newStorageService()
