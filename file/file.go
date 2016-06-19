@@ -130,7 +130,7 @@ func SaveProperties(fileName string, props map[string]interface{}) error {
 func GetProperty(props map[string]interface{}, name string) string {
 	value, ok := props[name].(string)
 	if !ok {
-		log.Fatal("No supplierID in properties")
+		log.Fatal("No " + name + " in properties")
 	}
 	return value
 }
