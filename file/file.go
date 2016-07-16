@@ -103,6 +103,15 @@ func UnZipIT(folder string, fileName string) ([]string, error) {
 	return results, err
 }
 
+// GetJSON handy function to unmarshal a JSON string.
+// You can use GetProperty to get string results there after.
+func GetJSON(input string) map[string]interface{} {
+	var data interface{}
+	json.Unmarshal([]byte(input), &data)
+	m := data.(map[string]interface{})
+	return m
+}
+
 // LoadProperties Loads JSON properties into a MAP,
 // Use GetProperty, thereafter to get a named property.
 // The properties file needs to be in a JSON format as follows:
