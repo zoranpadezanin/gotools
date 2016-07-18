@@ -12,6 +12,7 @@ import (
 
 //Get is to call a rest service via a GET method
 func Get(url string, username string, password string) (*http.Response, error) {
+	_ = "breakpoint"
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

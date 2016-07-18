@@ -164,7 +164,7 @@ func InitLogs(stdout bool, logFolder string, prefix string) (*log.Logger, *log.L
 			panic("Error opening logs")
 		}
 		//Keep logfolder clean by deleting logs older than 30 days
-		_ = CleanFolder(logFolder, 60)
+		_ = CleanFolder(logFolder, 10)
 	}
 
 	infoLog := log.New(handler, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)

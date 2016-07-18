@@ -39,7 +39,7 @@ func NewWorkflow(swfDomain string, swfTasklist string, swfIdentity string) *Acti
 
 //StartPolling start the polling, ensure to pass in the call back function to handle the activity
 func (a *Activity) StartPolling(stdout bool, logfolder string, handleActivity func(name string, input string) (result string, err error)) error {
-	Info, Error = file.InitLogs(stdout, logfolder, "RCLQAS")
+	Info, Error = file.InitLogs(stdout, logfolder, a.swfTasklist)
 	Info.Println("Starting " + a.swfIdentity + " ==>")
 	swfsvc := swf.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
 
@@ -53,6 +53,7 @@ func (a *Activity) StartPolling(stdout bool, logfolder string, handleActivity fu
 	Info.Println(params)
 
 	// loop forever while polling for work
+	x := 0
 	for {
 		resp, err := swfsvc.PollForActivityTask(params)
 		if err != nil {
@@ -63,7 +64,7 @@ func (a *Activity) StartPolling(stdout bool, logfolder string, handleActivity fu
 		//_ = "breakpoint"
 		if resp.TaskToken != nil {
 			if *resp.TaskToken != "" {
-				Info, Error = file.InitLogs(stdout, logfolder, "RCLQAS") // so that we update log file date
+				Info, Error = file.InitLogs(stdout, logfolder, a.swfTasklist) // so that we update log file date
 				a.svc = swfsvc
 				a.tt = *resp.TaskToken
 				a.input = *resp.Input
@@ -79,7 +80,12 @@ func (a *Activity) StartPolling(stdout bool, logfolder string, handleActivity fu
 				}
 			}
 		} else {
-			Info.Printf("debug - no activity required\n")
+			// Every 20 minutes check in, just so we have some log activity
+			x++
+			if x == 20 {
+				Info.Printf("debug - no activity required\n")
+				x = 0
+			}
 		}
 	}
 }
