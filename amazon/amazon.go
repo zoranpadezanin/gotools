@@ -1,11 +1,18 @@
+// http://docs.aws.amazon.com/sdk-for-go/api/
+
 package amazon
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/swf"
 )
@@ -50,6 +57,12 @@ func SESSendEmail(from string, to string, subject string, message string) error 
 
 }
 
+// SWFNewSession gets new session
+func SWFNewSession(id string, secret string) *swf.SWF {
+	sess := session.New(&aws.Config{Region: aws.String("us-east-1"), Credentials: credentials.NewStaticCredentials(id, secret, "")})
+	return swf.New(sess)
+}
+
 // SWFStartWorkflow starts a new workflow
 func SWFStartWorkflow(svc *swf.SWF, domainName string, workflowName string, version string, input string, tag string, tasklist string) (*string, error) {
 	//svc := swf.New(session.New())
@@ -78,6 +91,37 @@ func SWFStartWorkflow(svc *swf.SWF, domainName string, workflowName string, vers
 	return resp.RunId, err
 }
 
+// SWFPollForActivity will poll for up to 10 minutes for the job to load, there after will cancel out.
+// cdecider will schedule the loadcompleted activity under a tasklist for with the supplierid
+func SWFPollForActivity(svc *swf.SWF, domain string, tasklist string, supplierID string, Info *log.Logger, onComplete func(taskname string, input string, tasktoken string)) error {
+	params := &swf.PollForActivityTaskInput{
+		Domain: aws.String(domain), //
+		TaskList: &swf.TaskList{ //
+			Name: aws.String(tasklist), //
+		},
+		Identity: aws.String(supplierID),
+	}
+
+	// loop for 10 minutes, if no response then error out
+	for i := 0; i < 10; i++ {
+		resp, err := svc.PollForActivityTask(params)
+		if err != nil {
+			return err
+		}
+
+		// if we receive a task token then 60 second time out occured so try again
+		if resp.TaskToken != nil {
+			if *resp.TaskToken != "" {
+				_ = "breakpoint"
+				onComplete("", *resp.Input, *resp.TaskToken)
+				return nil
+			}
+		}
+		Info.Printf("Wait another minute...> %v ", i)
+	}
+	return errors.New("No response from " + domain + ", check the helpdesk as data is not loaded, then try cdump again...")
+}
+
 // SWFCompleteActivity - completes the activity
 func SWFCompleteActivity(swfsvc *swf.SWF, tt string, result string) error {
 	//swfsvc := swf.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
@@ -98,6 +142,22 @@ func SWFCancelActivity(tt string, details string) error {
 		Details:   aws.String(details),
 	}
 	_, err := swfsvc.RespondActivityTaskCanceled(params)
+	return err
+}
+
+// S3SendFile bla
+func S3SendFile(id string, secret string, keyName string, bucketName string, file io.Reader) error {
+	sess := session.New(&aws.Config{Region: aws.String("us-east-1"), Credentials: credentials.NewStaticCredentials(id, secret, "")})
+	uploader := s3manager.NewUploader(sess)
+
+	// Upload input parameters
+	upParams := &s3manager.UploadInput{
+		Bucket: &bucketName,
+		Key:    &keyName,
+		Body:   file,
+	}
+
+	_, err := uploader.Upload(upParams)
 	return err
 
 }
