@@ -27,8 +27,8 @@ var (
 	Error *log.Logger
 )
 
-// NewWorkflow sets up the struc
-func NewWorkflow(swfDomain string, swfTasklist string, swfIdentity string) *Activity {
+// NewActivity sets up the struc
+func NewActivity(swfDomain string, swfTasklist string, swfIdentity string) *Activity {
 	a := &Activity{
 		swfDomain:   swfDomain,
 		swfTasklist: swfTasklist,
@@ -73,10 +73,9 @@ func (a *Activity) StartPolling(stdout bool, logfolder string, handleActivity fu
 				result, err := handleActivity(a.name, a.input)
 				if err != nil {
 					Info.Printf("Error sending POD: \n" + a.input)
-					a.taskFailed(err.Error())
+					a.TaskFailed(err.Error())
 				} else {
-					Info.Println("Task completed OK")
-					a.taskCompleted(result)
+					a.TaskCompleted(result)
 				}
 			}
 		} else {
@@ -90,8 +89,9 @@ func (a *Activity) StartPolling(stdout bool, logfolder string, handleActivity fu
 	}
 }
 
-// taskfailed is used to complete to fail this activity so the decider can take action
-func (a *Activity) taskFailed(reason string) error {
+// TaskFailed is used to complete to fail this activity so the decider can take action
+func (a *Activity) TaskFailed(reason string) error {
+	Info.Printf("Setting task as failed %s", a.name)
 	faiparams := &swf.RespondActivityTaskFailedInput{
 		Reason:    aws.String(reason),
 		TaskToken: aws.String(a.tt),
@@ -103,8 +103,9 @@ func (a *Activity) taskFailed(reason string) error {
 	return nil
 }
 
-// taskCompleted is used to complete this activity so the decider moves onto the next step
-func (a *Activity) taskCompleted(result string) error {
+// TaskCompleted is used to complete this activity so the decider moves onto the next step
+func (a *Activity) TaskCompleted(result string) error {
+	Info.Printf("Setting task as completed %s", a.name)
 	comparams := &swf.RespondActivityTaskCompletedInput{
 		Result:    aws.String(result),
 		TaskToken: aws.String(a.tt),

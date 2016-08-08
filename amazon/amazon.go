@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"time"
 
+	"github.com/CaboodleData/gotools/file"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/swf"
@@ -160,4 +163,52 @@ func S3SendFile(id string, secret string, keyName string, bucketName string, fil
 	_, err := uploader.Upload(upParams)
 	return err
 
+}
+
+// S3Download a file from S3 buy sending in the buckey and key to download
+// This needs default credentials to be setup
+func S3Download(bucket string, objectKey string) error {
+	//sess := session.New(&aws.Config{Region: aws.String("us-east-1"), Credentials: credentials.NewStaticCredentials(id, secret, "")})
+	sess := session.New(&aws.Config{Region: aws.String("us-east-1")})
+	dfile, err := os.Create(objectKey)
+	if err != nil {
+		log.Fatal("Failed to create file", err)
+	}
+	defer dfile.Close()
+
+	downloader := s3manager.NewDownloader(sess)
+	_, err = downloader.Download(dfile,
+		&s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(objectKey),
+		})
+	return err
+}
+
+// S3DownloadUnMarshal downloads a file from S3, but also unmarshals into a structure
+// This needs default credentials to be setup
+func S3DownloadUnMarshal(bucket string, objectKey string, s interface{}) error {
+	//sess := session.New(&aws.Config{Region: aws.String("us-east-1"), Credentials: credentials.NewStaticCredentials(id, secret, "")})
+	sess := session.New(&aws.Config{Region: aws.String("us-east-1")})
+
+	dfile, err := os.Create(objectKey)
+	if err != nil {
+		log.Fatal("Failed to create file", err)
+	}
+	defer dfile.Close()
+
+	downloader := s3manager.NewDownloader(sess)
+	_, err = downloader.Download(dfile,
+		&s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(objectKey),
+		})
+	if err != nil {
+		return err
+	}
+	if err = file.LoadJSON(dfile.Name(), &s); err != nil {
+		return err
+	}
+	err = os.Remove(dfile.Name())
+	return err
 }

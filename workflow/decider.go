@@ -27,7 +27,7 @@ var (
 	swfDomain   = "Orders"
 	stdout      bool
 	helpdesk    = "shaun@rapidtrade.biz"
-	swfTasklist = "OrderDecider"
+	SwfTasklist = "OrderDecider"
 	swfIdentity = "RapidDecider"
 )
 
@@ -41,35 +41,37 @@ type Decider struct {
 	workflowid       string //
 	ProjectID        string
 	swfDomain        string
-	swfTasklist      string
+	SwfTasklist      string
 	swfIdentity      string
 	swfFirstActivity string
+	swfFirstTaskList string
 }
 
 // NextActivity bla
 type NextActivity struct {
-	name       string
-	version    string
-	input      string
-	stcTimeout string
-	tasklist   string
-	context    string
-	complete   bool
+	Name       string
+	Version    string
+	Input      string
+	StcTimeout string
+	Tasklist   string
+	Context    string
+	Complete   bool
 }
 
 // NewDecider sets up the struc
-func NewDecider(swfDomain string, swfTasklist string, swfIdentity string, swfFirstActivity string) *Decider {
+func NewDecider(swfDomain string, swfTasklist string, swfIdentity string, swfFirstActivity string, swfFirstTaskList string) *Decider {
 	d := &Decider{
 		swfDomain:        swfDomain,
-		swfTasklist:      swfTasklist,
+		SwfTasklist:      swfTasklist,
 		swfIdentity:      swfIdentity,
 		swfFirstActivity: swfFirstActivity,
+		swfFirstTaskList: swfFirstTaskList,
 	}
 	return d
 }
 
 //StartDeciderPolling start the polling, ensure to pass in the call back function to handle the activity
-func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string, handleDecision func(name string, input string) (result string, err error)) error {
+func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string, handleDecision func(d *Decider, lastActivity string, result string) (*NextActivity, error), eventHandled func(event string)) error {
 
 	// initialise logs
 	Info, Error = file.InitLogs(stdout, logfolder, name)
@@ -78,11 +80,11 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 	// start workflow
 	swfsvc := swf.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
 	params := &swf.PollForDecisionTaskInput{
-		Domain: aws.String(swfDomain), //
+		Domain: aws.String(d.swfDomain), //
 		TaskList: &swf.TaskList{ //
-			Name: aws.String(swfTasklist), //
+			Name: aws.String(d.SwfTasklist), //
 		},
-		Identity:        aws.String(swfIdentity),
+		Identity:        aws.String(d.swfIdentity),
 		MaximumPageSize: aws.Int64(100),
 		ReverseOrder:    aws.Bool(true),
 	}
@@ -107,14 +109,14 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 				d.workflowid = *resp.WorkflowExecution.WorkflowId
 			}
 			// make each decision in a goroutine which means that multiple decisions can be made
-			go d.makeDecision(resp.Events, resp.WorkflowExecution.RunId, nil)
+			go d.makeDecision(resp.Events, resp.WorkflowExecution.RunId, handleDecision, eventHandled)
 		} else {
 			Info.Printf("debug - no decisions required\n")
 		}
 	}
 }
 
-func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleActivity func(d *Decider, lastActivity string) (*NextActivity, error)) {
+func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleDecision func(d *Decider, lastActivity string, result string) (*NextActivity, error), eventHandled func(event string)) {
 	Info.Print("###############\n")
 	Info.Print(ID)
 	Info.Print("\n##############\n")
@@ -132,16 +134,16 @@ func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleAct
 		case "ActivityTaskCompleted":
 			_ = "breakpoint"
 			lastActivity := d.getLastScheduledActivity(events)
-			nextactivity, err1 := handleActivity(d, lastActivity)
+			nextactivity, err1 := handleDecision(d, lastActivity, *event.ActivityTaskCompletedEventAttributes.Result)
 			if err1 != nil {
 				d.emailError("ActivityTaskFailed")
 				d.failWorkflow(*event.ActivityTaskFailedEventAttributes.Reason, nil)
 			}
-			if nextactivity.complete {
-				d.CompleteWorkflow(nextactivity.input)
+			if nextactivity.Complete {
+				d.CompleteWorkflow(nextactivity.Input)
 				handled = true
 			} else {
-				d.ScheduleNextActivity(nextactivity.name, nextactivity.version, nextactivity.input, nextactivity.stcTimeout, nextactivity.tasklist, nextactivity.context)
+				d.ScheduleNextActivity(nextactivity.Name, nextactivity.Version, nextactivity.Input, nextactivity.StcTimeout, nextactivity.Tasklist, nextactivity.Context)
 			}
 
 		case "ActivityTaskTimedOut":
@@ -169,6 +171,7 @@ func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleAct
 		default:
 			Info.Printf("Unhandled: %s\n", *event.EventType)
 		}
+		go eventHandled(*event.EventType)
 		if handled == true {
 			break // decision has been made so stop scanning the events
 		}
@@ -338,9 +341,7 @@ func (d *Decider) getJSON(input string) map[string]interface{} {
 
 func (d *Decider) handleWorkflowStart(event *swf.HistoryEvent) error {
 	wfInput := *event.WorkflowExecutionStartedEventAttributes.Input
-	json := d.getJSON(wfInput)
-	supplierid, _ := json["SupplierID"].(string)
-	err := d.ScheduleNextActivity(d.swfFirstActivity, "1", wfInput, "10000", supplierid, "")
+	err := d.ScheduleNextActivity(d.swfFirstActivity, "1", wfInput, "10000", d.swfFirstTaskList, "")
 	return err
 }
 

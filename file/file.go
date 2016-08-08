@@ -115,7 +115,7 @@ func GetJSON(input string) map[string]interface{} {
 // LoadProperties Loads JSON properties into a MAP,
 // Use GetProperty, thereafter to get a named property.
 // The properties file needs to be in a JSON format as follows:
-// {"accesskey":"GOOGYPA7N6QF2XXXPWEB5","bucket":"rapidtradeinbox"}
+// {"accesskey":"GOOGYPA7N6F2XXXPWEB5","bucket":"rapidtradeinbox"}
 func LoadProperties(fileName string) (map[string]interface{}, error) {
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -125,6 +125,16 @@ func LoadProperties(fileName string) (map[string]interface{}, error) {
 	json.Unmarshal(b, &data)
 	m := data.(map[string]interface{})
 	return m, err
+}
+
+// LoadJSON bla
+func LoadJSON(fileName string, data interface{}) error {
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(b, &data)
+	return err
 }
 
 /*
