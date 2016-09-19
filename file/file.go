@@ -171,7 +171,7 @@ func InitLogs(stdout bool, logFolder string, prefix string) (*log.Logger, *log.L
 		logName := filepath.Join(logFolder, prefix+"_"+time.Now().Format("20060102")+".log")
 		handler, err = os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			panic("Error opening logs")
+			panic("Error opening logs " + err.Error())
 		}
 		//Keep logfolder clean by deleting logs older than 30 days
 		_ = CleanFolder(logFolder, 10)
