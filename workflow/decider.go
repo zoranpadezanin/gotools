@@ -24,27 +24,28 @@ type result struct {
 
 //Globals variables
 var (
-	swfDomain   = "Orders"
+	swfDomain   = "InboundTest"
 	stdout      bool
 	helpdesk    = "shaun@rapidtrade.biz"
-	SwfTasklist = "OrderDecider"
-	swfIdentity = "RapidDecider"
+	SwfTasklist = "inbounddeciderTL"
+	swfIdentity = "InboundTest"
 )
 
 //Decider structure holds the required data to deal with our workflow
 type Decider struct {
-	svc              *swf.SWF
-	tt               string // task token associated with this decision
-	input            string
-	name             string
-	runid            string //Workflows runid
-	workflowid       string //
-	ProjectID        string
-	swfDomain        string
-	SwfTasklist      string
-	swfIdentity      string
-	swfFirstActivity string
-	swfFirstTaskList string
+	svc                     *swf.SWF
+	tt                      string // task token associated with this decision
+	input                   string
+	name                    string
+	runid                   string //Workflows runid
+	workflowid              string //
+	ProjectID               string
+	swfDomain               string
+	SwfTasklist             string
+	swfIdentity             string
+	swfFirstActivity        string
+	swfFirstActivityVersion string
+	swfFirstTaskList        string
 }
 
 // NextActivity bla
@@ -59,13 +60,14 @@ type NextActivity struct {
 }
 
 // NewDecider sets up the struc
-func NewDecider(swfDomain string, swfTasklist string, swfIdentity string, swfFirstActivity string, swfFirstTaskList string) *Decider {
+func NewDecider(swfDomain string, swfTasklist string, swfIdentity string, swfFirstActivity string, swfFirstActivityVersion string, swfFirstTaskList string) *Decider {
 	d := &Decider{
-		swfDomain:        swfDomain,
-		SwfTasklist:      swfTasklist,
-		swfIdentity:      swfIdentity,
-		swfFirstActivity: swfFirstActivity,
-		swfFirstTaskList: swfFirstTaskList,
+		swfDomain:               swfDomain,
+		SwfTasklist:             swfTasklist,
+		swfIdentity:             swfIdentity,
+		swfFirstActivity:        swfFirstActivity,
+		swfFirstTaskList:        swfFirstTaskList,
+		swfFirstActivityVersion: swfFirstActivityVersion,
 	}
 	return d
 }
@@ -75,7 +77,7 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 
 	// initialise logs
 	Info, Error = file.InitLogs(stdout, logfolder, name)
-	Info.Println("Starting Decider =================>")
+	Info.Println("Starting  Decider =================>")
 
 	// start workflow
 	swfsvc := swf.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
@@ -89,7 +91,9 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 		ReverseOrder:    aws.Bool(true),
 	}
 
+	Info.Printf("Starting  polling for %s", d.SwfTasklist)
 	// loop forever while polling for work
+	cnt := 0
 	for {
 		resp, err := swfsvc.PollForDecisionTask(params)
 		if err != nil {
@@ -111,7 +115,11 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 			// make each decision in a goroutine which means that multiple decisions can be made
 			go d.makeDecision(resp.Events, resp.WorkflowExecution.RunId, handleDecision, eventHandled)
 		} else {
-			Info.Printf("debug - no decisions required\n")
+			cnt++
+			if cnt > 30 {
+				Info.Printf("debug - no decisions required %s \n", d.SwfTasklist)
+				cnt = 0
+			}
 		}
 	}
 }
@@ -128,6 +136,7 @@ func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleDec
 	for k, event := range events {
 		switch *event.EventType {
 		case "WorkflowExecutionStarted":
+			_ = "breakpoint"
 			d.handleWorkflowStart(event)
 			handled = true
 
@@ -340,8 +349,9 @@ func (d *Decider) getJSON(input string) map[string]interface{} {
 }
 
 func (d *Decider) handleWorkflowStart(event *swf.HistoryEvent) error {
+	_ = "brakpoint"
 	wfInput := *event.WorkflowExecutionStartedEventAttributes.Input
-	err := d.ScheduleNextActivity(d.swfFirstActivity, "1", wfInput, "10000", d.swfFirstTaskList, "")
+	err := d.ScheduleNextActivity(d.swfFirstActivity, d.swfFirstActivityVersion, wfInput, "10000", d.swfFirstTaskList, "")
 	return err
 }
 

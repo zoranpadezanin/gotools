@@ -67,14 +67,21 @@ func SWFNewSession(id string, secret string) *swf.SWF {
 }
 
 // SWFStartWorkflow starts a new workflow
-func SWFStartWorkflow(svc *swf.SWF, domainName string, workflowName string, version string, input string, tags []string, tasklist string) (*string, error) {
+func SWFStartWorkflow(svc *swf.SWF, domainName string, workflowName string, version string, packageID string, input string, tags []string, tasklist string) (*string, error) {
 	// convert TagList
 	var awstags []*string
+	var id string
+
 	for _, row := range tags {
 		awstags = append(awstags, aws.String(row))
 	}
 	//svc := swf.New(session.New())
-	id := workflowName + time.Now().Format("20060102150405")
+	if len(packageID) > 0 {
+		id = packageID + time.Now().Format("_150405.99999")
+	} else {
+		id = workflowName + time.Now().Format("20060102150405.99999")
+	}
+
 	params := &swf.StartWorkflowExecutionInput{
 		Domain:     aws.String(domainName), // Required
 		WorkflowId: aws.String(id),         // Required
