@@ -73,10 +73,10 @@ func NewDecider(swfDomain string, swfTasklist string, swfIdentity string, swfFir
 }
 
 //StartDeciderPolling start the polling, ensure to pass in the call back function to handle the activity
-func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string, handleDecision func(d *Decider, lastActivity string, result string) (*NextActivity, error), eventHandled func(event string)) error {
+func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string, logname string, handleDecision func(d *Decider, lastActivity string, result string) (*NextActivity, error), eventHandled func(event string)) error {
 
 	// initialise logs
-	Info, Error = file.InitLogs(stdout, logfolder, name)
+	Info, Error = file.InitLogs(stdout, logfolder, logname)
 	Info.Println("Starting  Decider =================>")
 
 	// start workflow
@@ -106,7 +106,7 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 		if resp.TaskToken != nil {
 			if *resp.TaskToken != "" {
 				// Re-initialise logs so we get latest date
-				Info, Error = file.InitLogs(stdout, logfolder, name)
+				Info, Error = file.InitLogs(stdout, logfolder, logname)
 				d.svc = swfsvc
 				d.tt = *resp.TaskToken
 				d.runid = *resp.WorkflowExecution.RunId
@@ -125,10 +125,6 @@ func (d *Decider) StartDeciderPolling(name string, stdout bool, logfolder string
 }
 
 func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleDecision func(d *Decider, lastActivity string, result string) (*NextActivity, error), eventHandled func(event string)) {
-	Info.Print("###############\n")
-	Info.Print(ID)
-	Info.Print("\n##############\n")
-
 	var handled bool
 	var err error
 
@@ -178,7 +174,7 @@ func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleDec
 			handled = true
 
 		default:
-			Info.Printf("Unhandled: %s\n", *event.EventType)
+			//Info.Printf("Unhandled: %s\n", *event.EventType)
 		}
 		go eventHandled(*event.EventType)
 		if handled == true {
@@ -200,7 +196,7 @@ func (d *Decider) makeDecision(events []*swf.HistoryEvent, ID *string, handleDec
 		Info.Println(events)
 		Info.Printf("xxxx debug unhandled decision\n")
 	}
-	Info.Print("#################### completed handling Decision ####################\n")
+	//Info.Print("#################### completed handling Decision ####################\n")
 	// exit goroutine
 }
 
